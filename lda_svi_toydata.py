@@ -28,9 +28,10 @@ if __name__ == '__main__':
     hp_alpha = 1 / K
     hp_eta = 2
     # learning rate \rho is scheduled as \rho_t = (t + \tau)^{-kappa}
-    num_epochs = 100
+    num_epochs = 500
+    batch_size = 1
     tau = 1.0
-    kappa = 0.8
+    kappa = 0.9
 
     docs = list(corpus)
 
@@ -43,39 +44,43 @@ if __name__ == '__main__':
     ppl_history = []
     for epoch in range(1, num_epochs + 1):
         print('epoch', epoch)
-        random.shuffle(docs)
         print('rho =', rho)
         ppls = []
-        for doc in tqdm(docs, total=D):
+        perm = np.random.permutation(D)
+        num_batches = D // batch_size
+        indexes = np.array_split(perm, num_batches)
+        for batch in tqdm(indexes, total=num_batches):
             t += 1
             rho = (t + tau) ** -kappa  # learning rate
-            # Step 4
-            x = doc_to_tokens(doc)
-
+            lambda_hat = np.zeros_like(p_lambda)
 
             # Step 5-9
             digamma_lambda = digamma(p_lambda)
             digamma_sum_lambda = digamma(p_lambda.sum(1, keepdims=True))
-            p_gamma = np.ones(K, float)
-            for ite in range(15):
-                digamma_gamma = digamma(p_gamma)
-                digamma_sum_gamma = digamma(p_gamma.sum())
-                e_log_theta = digamma_gamma - digamma_sum_gamma
-                # Without for loop below
-                e_log_beta = digamma_lambda[:, x] - digamma_sum_lambda
-                exponent = e_log_theta[:, None] + e_log_beta
-                exponent -= exponent.max(0, keepdims=True)
-                p_phi = np.exp(exponent)
-                p_phi /= p_phi.sum(0, keepdims=True)
+            for d in batch:
+                # Step 4
+                x = doc_to_tokens(docs[d])
 
-                p_gamma = hp_alpha + np.sum(p_phi, 1)
-    #            print(p_gamma)
+                p_gamma = np.ones(K, float)
+                for ite in range(15):
+                    digamma_gamma = digamma(p_gamma)
+                    digamma_sum_gamma = digamma(p_gamma.sum())
+                    e_log_theta = digamma_gamma - digamma_sum_gamma
+                    # Without for loop below
+                    e_log_beta = digamma_lambda[:, x] - digamma_sum_lambda
+                    exponent = e_log_theta[:, None] + e_log_beta
+                    exponent -= exponent.max(0, keepdims=True)
+                    p_phi = np.exp(exponent)
+                    p_phi /= p_phi.sum(0, keepdims=True)
 
-            # Step 10
-            lambda_hat = np.zeros_like(p_lambda)
-            for w, p_phi_n in zip(x, p_phi.T):
-                lambda_hat[:, w] += p_phi_n
-            lambda_hat *= D
+                    p_gamma = hp_alpha + np.sum(p_phi, 1)
+        #            print(p_gamma)
+
+                # Step 10
+                for w, p_phi_n in zip(x, p_phi.T):
+                    lambda_hat[:, w] += p_phi_n
+
+            lambda_hat *= D / batch_size
             lambda_hat += hp_eta
 
             # Step 11
