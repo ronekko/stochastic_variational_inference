@@ -24,13 +24,14 @@ if __name__ == '__main__':
     D = corpus.num_docs
     V = corpus.num_terms
     K = 20
-#    hp_alpha = 0.1 / K
-#    hp_eta = 0.001
     hp_alpha = 1 / K
     hp_eta = 0.1
-    # learning rate \rho is scheduled as \rho_t = (t + \tau)^{-kappa}
-    num_epochs = 100
+
+    num_epochs = 2000
     batch_size = 50
+    max_iter_local  = 200  # max iteration for local optimization
+    thresh_local_convergence = 0.001  # convergence threshold for local optim
+    # learning rate \rho is scheduled as \rho_t = (t + \tau)^{-kappa}
     tau = 1.0
     kappa = 0.9
 
@@ -61,25 +62,32 @@ if __name__ == '__main__':
             for d in batch:
                 # Step 4
                 x = doc_to_tokens(docs[d])
-
-                p_gamma = np.ones(K, float)
-                for ite in range(15):
+                p_gamma = np.random.gamma(100, 0.01, K)
+                for ite in range(max_iter_local):
+                    p_gamma_prev = p_gamma
                     digamma_gamma = digamma(p_gamma)
                     digamma_sum_gamma = digamma(p_gamma.sum())
                     e_log_theta = digamma_gamma - digamma_sum_gamma
-                    # Without for loop below
                     e_log_beta = digamma_lambda[:, x] - digamma_sum_lambda
                     exponent = e_log_theta[:, None] + e_log_beta
-                    exponent -= exponent.max(0, keepdims=True)
                     p_phi = np.exp(exponent)
                     p_phi /= p_phi.sum(0, keepdims=True)
 
                     p_gamma = hp_alpha + np.sum(p_phi, 1)
-        #            print(p_gamma)
+                    mean_diff = np.abs(p_gamma_prev - p_gamma).mean()
+                    if mean_diff < thresh_local_convergence:
+                        break
 
                 # Step 10
                 for w, p_phi_n in zip(x, p_phi.T):
                     lambda_hat[:, w] += p_phi_n
+#                w_unique = np.unique(x)
+#                tmp = np.zeros_like(p_lambda)
+#                tmp[:, x] = p_phi
+#                counts = np.bincount(x, minlength=V)
+#                tmp = tmp[:, counts!=0]
+#                counts = counts[counts!=0]
+#                lambda_hat[:, w_unique] += tmp * counts
 
             lambda_hat *= D / batch_size
             lambda_hat += hp_eta
@@ -101,6 +109,7 @@ if __name__ == '__main__':
         ppl_history.append(epoch_ppl)
 #        ppl_history += ppls
         plt.plot(ppl_history)
+        plt.grid()
         plt.show()
 
         topics = p_lambda / p_lambda.sum(1, keepdims=True)
