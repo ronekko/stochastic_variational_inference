@@ -18,6 +18,13 @@ def doc_to_tokens(doc):
     return sum([[w[0]] * int(w[1]) for w in doc], [])
 
 
+def doc_to_words_counts(doc):
+    bow = np.int64(doc)
+    words = bow.T[0]
+    counts = bow.T[1]
+    return words, counts
+
+
 if __name__ == '__main__':
     corpus = gensim.corpora.UciCorpus('kos/docword.kos.txt',
                                       'kos/vocab.kos.txt')
@@ -61,33 +68,25 @@ if __name__ == '__main__':
             digamma_sum_lambda = digamma(p_lambda.sum(1, keepdims=True))
             for d in batch:
                 # Step 4
-                x = doc_to_tokens(docs[d])
+                words, counts = doc_to_words_counts(docs[d])
                 p_gamma = np.random.gamma(100, 0.01, K)
                 for ite in range(max_iter_local):
                     p_gamma_prev = p_gamma
                     digamma_gamma = digamma(p_gamma)
                     digamma_sum_gamma = digamma(p_gamma.sum())
                     e_log_theta = digamma_gamma - digamma_sum_gamma
-                    e_log_beta = digamma_lambda[:, x] - digamma_sum_lambda
+                    e_log_beta = digamma_lambda[:, words] - digamma_sum_lambda
                     exponent = e_log_theta[:, None] + e_log_beta
                     p_phi = np.exp(exponent)
                     p_phi /= p_phi.sum(0, keepdims=True)
 
-                    p_gamma = hp_alpha + np.sum(p_phi, 1)
+                    p_gamma = hp_alpha + p_phi.dot(counts)
                     mean_diff = np.abs(p_gamma_prev - p_gamma).mean()
                     if mean_diff < thresh_local_convergence:
                         break
 
                 # Step 10
-                for w, p_phi_n in zip(x, p_phi.T):
-                    lambda_hat[:, w] += p_phi_n
-#                w_unique = np.unique(x)
-#                tmp = np.zeros_like(p_lambda)
-#                tmp[:, x] = p_phi
-#                counts = np.bincount(x, minlength=V)
-#                tmp = tmp[:, counts!=0]
-#                counts = counts[counts!=0]
-#                lambda_hat[:, w_unique] += tmp * counts
+                lambda_hat[:, words] += p_phi * counts[None]
 
             lambda_hat *= D / batch_size
             lambda_hat += hp_eta
@@ -98,8 +97,8 @@ if __name__ == '__main__':
             # Rough evaluation
 #            e_theta = p_gamma / p_gamma.sum()
             e_beta = p_lambda / p_lambda.sum(1, keepdims=True)
-            ppl = np.average(-np.log(np.sum(p_phi * e_beta[:, x], 0)))
-#            ppl = -np.log(e_theta.dot(e_beta[:, x])).sum()
+            ppl = np.average(-np.log(np.sum(p_phi * e_beta[:, words], 0)),
+                             weights=counts)
             ppls.append(ppl)
 #            print('rho =', rho)
 #            print('ppl =', ppl)
