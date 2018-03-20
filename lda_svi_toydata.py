@@ -5,18 +5,12 @@ Created on Fri Feb 23 22:21:22 2018
 @author: ryuhei
 """
 
-import random
-
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.special import digamma
 from tqdm import tqdm
 
 from dataset_topics import generate_lda_corpus
-
-
-def doc_to_tokens(doc):
-    return sum([[w[0]] * int(w[1]) for w in doc], [])
 
 
 def doc_to_words_counts(doc):
@@ -37,7 +31,7 @@ if __name__ == '__main__':
 
     num_epochs = 2000
     batch_size = 50
-    max_iter_local  = 200  # max iteration for local optimization
+    max_iter_local = 200  # max iteration for local optimization
     thresh_local_convergence = 0.001  # convergence threshold for local optim
     # learning rate \rho is scheduled as \rho_t = (t + \tau)^{-kappa}
     tau = 1.0
@@ -66,7 +60,7 @@ if __name__ == '__main__':
 
             # Step 5-9
             digamma_lambda = digamma(p_lambda)
-            digamma_sum_lambda = digamma(p_lambda.sum(1, keepdims=True))
+            digamma_sum_lambda = digamma(p_lambda.sum(1))[:, None]
             for d in batch:
                 # Step 4
                 words, counts = doc_to_words_counts(docs[d])
@@ -96,25 +90,21 @@ if __name__ == '__main__':
             p_lambda = (1 - rho) * p_lambda + rho * lambda_hat
 
             # Rough evaluation
-#            e_theta = p_gamma / p_gamma.sum()
             e_beta = p_lambda / p_lambda.sum(1, keepdims=True)
             ppl = np.average(-np.log(np.sum(p_phi * e_beta[:, words], 0)),
                              weights=counts)
             ppls.append(ppl)
-#            print('rho =', rho)
-#            print('ppl =', ppl)
 
         epoch_ppl = np.average(ppls)
-        print(epoch_ppl)
+        print('Perplexity:', epoch_ppl)
         ppl_history.append(epoch_ppl)
-#        ppl_history += ppls
         plt.plot(ppl_history)
         plt.grid()
         plt.show()
 
         topics = p_lambda / p_lambda.sum(1, keepdims=True)
         word_ranks = [[corpus.id2word[w] for w in np.argsort(topic)[::-1]]
-                  for topic in topics]
+                      for topic in topics]
         for k, word_ranks_k in enumerate(word_ranks):
             print('{:2d} {}'.format(k, word_ranks_k[:5]))
 
@@ -122,6 +112,6 @@ if __name__ == '__main__':
         L = K // 2
         for k, topic in enumerate(topics):
             plt.subplot(2, K // 2, k + 1)
-            plt.imshow(topic.reshape(int(np.sqrt(V)), -1), vmin=0, vmax=1)
+            plt.imshow(topic.reshape(int(np.sqrt(V)), -1), vmin=0, vmax=0.2)
             plt.axis('off')
         plt.show()
