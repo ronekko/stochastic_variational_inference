@@ -5,23 +5,17 @@ Created on Fri Feb 23 22:21:22 2018
 @author: ryuhei
 """
 
-import gensim
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.special import digamma
 from tqdm import tqdm
 
-
-def doc_to_words_counts(doc):
-    bow = np.int64(doc)
-    words = bow.T[0]
-    counts = bow.T[1]
-    return words, counts
+import datasets
 
 
 if __name__ == '__main__':
-    corpus = gensim.corpora.UciCorpus('kos/docword.kos.txt',
-                                      'kos/vocab.kos.txt')
+    dataset_location = r'E:\Dataset\bow'
+    corpus = datasets.KosDataset(dataset_location)
     D = corpus.num_docs
     V = corpus.num_terms
     K = 20
@@ -36,7 +30,7 @@ if __name__ == '__main__':
     tau = 1.0
     kappa = 0.9
 
-    docs = list(corpus)
+    docs = corpus.docs
 
     # Initialize lambda according to footnote 6
     p_lambda = np.random.exponential(D * 100 / float(K * V), (K, V)) + hp_eta
@@ -62,7 +56,7 @@ if __name__ == '__main__':
             digamma_sum_lambda = digamma(p_lambda.sum(1))[:, None]
             for d in batch:
                 # Step 4
-                words, counts = doc_to_words_counts(docs[d])
+                words, counts = docs[d]
                 p_gamma = np.random.gamma(100, 0.01, K)
                 for ite in range(max_iter_local):
                     p_gamma_prev = p_gamma
