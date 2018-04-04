@@ -5,22 +5,15 @@ Created on Sat Mar  3 20:28:53 2018
 @author: ryuhei
 """
 
-import gensim
 import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
 from chainer.backends import cuda
 
+import datasets
+
 np.random.seed(0)
-
-
-def doc_to_words_counts(doc):
-    bow = np.int64(doc)
-    words = bow.T[0]
-    counts = bow.T[1]
-    return words, counts
-
 
 def add_at(a, slices, value):
     xp = cuda.get_array_module(a)
@@ -32,8 +25,8 @@ def add_at(a, slices, value):
 
 
 if __name__ == '__main__':
-    corpus = gensim.corpora.UciCorpus('kos/docword.kos.txt',
-                                      'kos/vocab.kos.txt')
+    dataset_location = r'E:\Dataset\bow'
+    corpus = datasets.KosDataset(dataset_location)
     D = corpus.num_docs
     V = corpus.num_terms
     K = 20
@@ -69,7 +62,7 @@ if __name__ == '__main__':
                 'elementwise_digamma',
             )
 
-    docs = list(corpus)
+    docs = corpus.docs
 
     # Initialize lambda according to footnote 6
     p_lambda = np.random.exponential(D * 100 / float(K * V), (K, V)) + hp_eta
@@ -95,12 +88,12 @@ if __name__ == '__main__':
             digamma_sum_lambda = digamma(p_lambda.sum(1))[:, None, None]
 
             B = len(batch)  # actual size of this mini-batch
-            lengths = [len(docs[d]) for d in batch]
+            lengths = [len(docs[d][0]) for d in batch]
             max_length = max(lengths)
             words = np.zeros((B, max_length), np.int64)
             counts = np.zeros((B, max_length), np.float32)
             for i, d in enumerate(batch):
-                words_d, counts_d = doc_to_words_counts(docs[d])
+                words_d, counts_d = docs[d]
                 length = len(words_d)
                 words[i, :length] = words_d
                 counts[i, :length] = counts_d
